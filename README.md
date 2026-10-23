@@ -32,10 +32,19 @@ Si no lo encuentra, la app muestra el aviso con las rutas y un botón "Reintenta
 - **`ChefViewModel.kt`**: el estado (`StateFlow`), la carga de `LlmInference` en `Dispatchers.IO`, el filtro de ingredientes con 3 días o menos, el prompt estricto de chef y la inferencia en una corrutina. Cada receta usa una `LlmInferenceSession` nueva para no mezclar contexto.
 - **`app/build.gradle.kts`**: todas las dependencias, con versiones exactas.
 
+## Funciones
+
+- Despensa guardada en el teléfono, ordenada por fecha de caducidad. Los urgentes (3 días o menos) y los caducados se marcan con colores, y hay un botón para quitar los caducados.
+- Al eliminar un ingrediente aparece «Deshacer».
+- Preferencias para la receta: rápida, vegetariana o sin gluten.
+- El chef usa obligatoriamente los ingredientes urgentes y puede apoyarse en el resto de la despensa.
+- La receta se escribe en tiempo real en una pantalla completa, con botones para compartir, pedir otra receta o marcarla como cocinada (quita de la despensa lo que usó).
+- Icono adaptable y pantalla de inicio animada (sartén con brote).
+
 ## Decisiones tomadas
 
 - `tasks-genai:0.10.24`, AGP 8.7.3, Kotlin 2.0.21, Compose BOM 2024.12.01, minSdk 26 (para el icono adaptable), compileSdk 35.
 - Backend CPU por defecto, que funciona en todos los teléfonos. El manifest declara las librerías OpenCL opcionales por si luego quieres probar GPU.
-- Los ingredientes viven en memoria; se pierden al cerrar la app. Guardarlos con Room o DataStore sería el siguiente paso natural.
+- Los ingredientes se guardan en el teléfono (SharedPreferences) con su fecha de caducidad, así que la cuenta de días baja sola cada día.
 
 Nota: Google está migrando la inferencia LLM de MediaPipe hacia LiteRT-LM. Esta versión de MediaPipe sigue funcionando; si Android Studio te ofrece subir `tasks-genai`, revisa sus notas de versión antes.
