@@ -34,7 +34,7 @@ Si no lo encuentra, la app muestra el aviso con las rutas y un botón "Reintenta
 
 ## Decisiones tomadas
 
-- `tasks-genai:0.10.24`, AGP 8.7.3, Kotlin 2.0.21, Compose BOM 2024.12.01, minSdk 24 (el mínimo de MediaPipe GenAI), compileSdk 35.
+- `tasks-genai:0.10.24`, AGP 8.7.3, Kotlin 2.0.21, Compose BOM 2024.12.01, minSdk 26 (para el icono adaptable), compileSdk 35.
 - Backend CPU por defecto, que funciona en todos los teléfonos. El manifest declara las librerías OpenCL opcionales por si luego quieres probar GPU.
 - Los ingredientes viven en memoria; se pierden al cerrar la app. Guardarlos con Room o DataStore sería el siguiente paso natural.
 

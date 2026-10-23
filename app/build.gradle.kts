@@ -10,8 +10,8 @@ android {
 
     defaultConfig {
         applicationId = "com.chefdesobras.app"
-        // MediaPipe Tasks GenAI requiere minSdk 24.
-        minSdk = 24
+        // 26 para el icono adaptable sin PNG de respaldo; MediaPipe GenAI pide 24 como mínimo.
+        minSdk = 26
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
@@ -57,6 +57,7 @@ dependencies {
 
     // Activity, ViewModel y corrutinas
     implementation("androidx.core:core-ktx:1.15.0")
+    implementation("androidx.core:core-splashscreen:1.0.1")
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")

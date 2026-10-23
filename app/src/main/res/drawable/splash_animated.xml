@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Animación de inicio (Propuesta A): la sartén sube, el brote crece con rebote y sale vapor.
+    Los valores estáticos del vector son el icono completo, así en Android < 12
+    (donde la pantalla de inicio no se anima) se ve el icono final.
+-->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+    <aapt:attr name="android:drawable">
+        <vector
+            android:width="288dp"
+            android:height="288dp"
+            android:viewportWidth="108"
+            android:viewportHeight="108">
+            <group
+                android:pivotX="54"
+                android:pivotY="54"
+                android:scaleX="0.78"
+                android:scaleY="0.78"
+                android:translateY="-4">
+                <group android:name="steam">
+                    <path
+                        android:name="steamPaths"
+                        android:pathData="M44,30q-3,-4 0,-8M56,28q3,-4 0,-8M50,26q-3,-4 0,-8"
+                        android:strokeAlpha="0"
+                        android:strokeColor="#F6EFE2"
+                        android:strokeLineCap="round"
+                        android:strokeWidth="2.2" />
+                </group>
+                <group android:name="pan">
+                    <path android:fillColor="#F6EFE2" android:pathData="M71.5,60h19a3.5,3.5 0,0 1,0 7h-19a3.5,3.5 0,0 1,0 -7z" />
+                    <path android:fillColor="#F6EFE2" android:pathData="M28,63a22,22 0,1 0,44 0a22,22 0,1 0,-44 0z" />
+                    <path android:fillColor="#E6DAC2" android:pathData="M34,63a16,16 0,1 0,32 0a16,16 0,1 0,-32 0z" />
+                    <path android:fillColor="#E4572E" android:pathData="M36,67a5,5 0,1 0,10 0a5,5 0,1 0,-10 0z" />
+                    <path
+                        android:pathData="M50,64V44"
+                        android:strokeColor="#4E9A57"
+                        android:strokeLineCap="round"
+                        android:strokeWidth="3" />
+                </group>
+                <group
+                    android:name="leafLeft"
+                    android:pivotX="50"
+                    android:pivotY="50">
+                    <path android:fillColor="#7BC47F" android:pathData="M50,50C42,49 37,41 39,34C47,35 52,42 50,50Z" />
+                </group>
+                <group
+                    android:name="leafRight"
+                    android:pivotX="50"
+                    android:pivotY="46">
+                    <path android:fillColor="#A8D672" android:pathData="M50,46C55,39 63,38 68,42C64,49 56,50 50,46Z" />
+                </group>
+            </group>
+        </vector>
+    </aapt:attr>
+
+    <target android:name="pan">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="320"
+                android:interpolator="@android:interpolator/fast_out_slow_in"
+                android:propertyName="translateY"
+                android:valueFrom="30"
+                android:valueTo="0"
+                android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+
+    <target android:name="leafLeft">
+        <aapt:attr name="android:animation">
+            <set>
+                <objectAnimator
+                    android:duration="380"
+                    android:interpolator="@android:anim/overshoot_interpolator"
+                    android:propertyName="scaleX"
+                    android:startOffset="240"
+                    android:valueFrom="0"
+                    android:valueTo="1"
+                    android:valueType="floatType" />
+                <objectAnimator
+                    android:duration="380"
+                    android:interpolator="@android:anim/overshoot_interpolator"
+                    android:propertyName="scaleY"
+                    android:startOffset="240"
+                    android:valueFrom="0"
+                    android:valueTo="1"
+                    android:valueType="floatType" />
+            </set>
+        </aapt:attr>
+    </target>
+
+    <target android:name="leafRight">
+        <aapt:attr name="android:animation">
+            <set>
+                <objectAnimator
+                    android:duration="380"
+                    android:interpolator="@android:anim/overshoot_interpolator"
+                    android:propertyName="scaleX"
+                    android:startOffset="320"
+                    android:valueFrom="0"
+                    android:valueTo="1"
+                    android:valueType="floatType" />
+                <objectAnimator
+                    android:duration="380"
+                    android:interpolator="@android:anim/overshoot_interpolator"
+                    android:propertyName="scaleY"
+                    android:startOffset="320"
+                    android:valueFrom="0"
+                    android:valueTo="1"
+                    android:valueType="floatType" />
+            </set>
+        </aapt:attr>
+    </target>
+
+    <target android:name="steam">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="420"
+                android:propertyName="translateY"
+                android:startOffset="560"
+                android:valueFrom="4"
+                android:valueTo="-6"
+                android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+
+    <target android:name="steamPaths">
+        <aapt:attr name="android:animation">
+            <set android:ordering="sequentially">
+                <objectAnimator
+                    android:duration="180"
+                    android:propertyName="strokeAlpha"
+                    android:startOffset="560"
+                    android:valueFrom="0"
+                    android:valueTo="0.85"
+                    android:valueType="floatType" />
+                <objectAnimator
+                    android:duration="240"
+                    android:propertyName="strokeAlpha"
+                    android:valueFrom="0.85"
+                    android:valueTo="0"
+                    android:valueType="floatType" />
+            </set>
+        </aapt:attr>
+    </target>
+</animated-vector>
