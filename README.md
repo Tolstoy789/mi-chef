@@ -11,20 +11,14 @@ App Android (Kotlin + Jetpack Compose + Material 3) que sugiere recetas con los 
 
 El modelo pesa unos 500 MB o más, así que no va dentro del APK. Recomiendo **Gemma 3 1B IT int4** (`gemma3-1b-it-int4.task`), que se descarga de Hugging Face en `litert-community/Gemma3-1B-IT` (hay que aceptar la licencia de Gemma).
 
-Cópialo al teléfono con el nombre `model.task`:
+Descárgalo en el teléfono (por ejemplo, en la carpeta Descargas). La primera vez que abras la app verás la pantalla «Elige el modelo de IA»: pulsa «Elegir archivo del modelo» y selecciona el `.task`. La app lo copia una sola vez a su almacenamiento interno (después puedes borrar el original) y lo recuerda. Para cambiarlo más tarde, pulsa «Cambiar» junto al nombre del modelo.
+
+Para desarrollo también sigue funcionando copiarlo con adb:
 
 ```bash
 adb shell mkdir -p /data/local/tmp/llm
 adb push gemma3-1b-it-int4.task /data/local/tmp/llm/model.task
 ```
-
-La app busca el modelo en este orden:
-
-1. `/data/local/tmp/llm/model.task` (lo cómodo para desarrollo).
-2. `/sdcard/Android/data/com.chefdesobras.app/files/model.task` (útil si la app ya está instalada y no es debug).
-3. `app/src/main/assets/model.task`, que copia una vez al almacenamiento interno. Solo conviene con modelos pequeños, porque infla el APK.
-
-Si no lo encuentra, la app muestra el aviso con las rutas y un botón "Reintentar".
 
 ## Cómo funciona
 

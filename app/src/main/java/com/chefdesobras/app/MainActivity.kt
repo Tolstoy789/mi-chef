@@ -4,7 +4,11 @@ import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
@@ -20,6 +24,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -69,6 +74,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -136,6 +145,13 @@ fun ChefScreen(viewModel: ChefViewModel = viewModel()) {
         if (result == SnackbarResult.ActionPerformed) viewModel.undoRemove()
     }
 
+    // Selector de archivos del sistema: el modelo .task no tiene tipo MIME propio, así que se aceptan todos.
+    val modelPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) viewModel.importModel(uri)
+    }
+    val chooseModel = { modelPicker.launch(arrayOf("*/*")) }
+    val showSetup = state.modelStatus is ModelStatus.NotSelected || state.modelStatus is ModelStatus.Importing
+
     val today = state.todayEpochDay
     val urgentCount = state.ingredients.count { it.daysLeft(today) in 0..ChefViewModel.URGENT_DAYS }
     val expiredCount = state.ingredients.count { it.daysLeft(today) < 0 }
@@ -153,49 +169,64 @@ fun ChefScreen(viewModel: ChefViewModel = viewModel()) {
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
-            val enabled = state.modelStatus == ModelStatus.Ready && !state.isGenerating
-            ExtendedFloatingActionButton(
-                onClick = { if (enabled) viewModel.generateRecipe() },
-                containerColor = if (enabled) MaterialTheme.colorScheme.primaryContainer
-                else MaterialTheme.colorScheme.surfaceVariant,
-                icon = {
-                    if (state.isGenerating) {
-                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                    } else {
-                        Icon(Icons.Filled.Refresh, contentDescription = null)
-                    }
-                },
-                text = {
-                    Text(
-                        when {
-                            state.isGenerating -> "Generando…"
-                            urgentCount > 0 -> "Generar Receta ($urgentCount)"
-                            else -> "Generar Receta"
+            if (!showSetup) {
+                val enabled = state.modelStatus is ModelStatus.Ready && !state.isGenerating
+                ExtendedFloatingActionButton(
+                    onClick = { if (enabled) viewModel.generateRecipe() },
+                    containerColor = if (enabled) MaterialTheme.colorScheme.primaryContainer
+                    else MaterialTheme.colorScheme.surfaceVariant,
+                    icon = {
+                        if (state.isGenerating) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                        } else {
+                            Icon(Icons.Filled.Refresh, contentDescription = null)
                         }
-                    )
-                },
-            )
+                    },
+                    text = {
+                        Text(
+                            when {
+                                state.isGenerating -> "Generando…"
+                                urgentCount > 0 -> "Generar Receta ($urgentCount)"
+                                else -> "Generar Receta"
+                            }
+                        )
+                    },
+                )
+            }
         },
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            ModelStatusBanner(state.modelStatus, onRetry = viewModel::loadModel)
-            IngredientForm(onAdd = viewModel::addIngredient)
-            PreferenceChips(selected = state.preferences, onToggle = viewModel::togglePreference)
-            if (state.ingredients.isNotEmpty()) {
-                PantrySummary(total = state.ingredients.size, urgent = urgentCount, expired = expiredCount)
-            }
-            IngredientList(
-                ingredients = state.ingredients,
-                today = today,
-                onRemove = viewModel::removeIngredient,
-                modifier = Modifier.weight(1f),
+        if (showSetup) {
+            ModelSetupScreen(
+                status = state.modelStatus,
+                onChoose = chooseModel,
+                modifier = Modifier.fillMaxSize().padding(padding),
             )
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                ModelStatusBanner(
+                    status = state.modelStatus,
+                    canChange = !state.isGenerating,
+                    onRetry = viewModel::loadModel,
+                    onChoose = chooseModel,
+                )
+                IngredientForm(onAdd = viewModel::addIngredient)
+                PreferenceChips(selected = state.preferences, onToggle = viewModel::togglePreference)
+                if (state.ingredients.isNotEmpty()) {
+                    PantrySummary(total = state.ingredients.size, urgent = urgentCount, expired = expiredCount)
+                }
+                IngredientList(
+                    ingredients = state.ingredients,
+                    today = today,
+                    onRemove = viewModel::removeIngredient,
+                    modifier = Modifier.weight(1f),
+                )
+            }
         }
     }
 
@@ -210,9 +241,77 @@ fun ChefScreen(viewModel: ChefViewModel = viewModel()) {
 }
 
 @Composable
-private fun ModelStatusBanner(status: ModelStatus, onRetry: () -> Unit) {
+private fun ModelSetupScreen(status: ModelStatus, onChoose: () -> Unit, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier.padding(horizontal = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
+    ) {
+        Box(
+            modifier = Modifier.size(112.dp).clip(CircleShape).background(Color(0xFF1F5135)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Image(
+                painter = painterResource(R.drawable.ic_launcher_foreground),
+                contentDescription = null,
+                modifier = Modifier.size(112.dp),
+            )
+        }
+        Text(
+            "Elige el modelo de IA",
+            style = MaterialTheme.typography.headlineSmall,
+            textAlign = TextAlign.Center,
+        )
+        Text(
+            "Chef de Sobras usa Gemma dentro de tu teléfono, sin internet. Elige el archivo .task " +
+                "que descargaste, por ejemplo gemma3-1b-it-int4.task. Se copia una sola vez dentro de la app.",
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+        if (status is ModelStatus.Importing) {
+            val progress = status.progress
+            if (progress != null) {
+                LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
+                Text("Copiando ${status.fileName}… ${(progress * 100).toInt()} %", textAlign = TextAlign.Center)
+            } else {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                Text("Copiando ${status.fileName}…", textAlign = TextAlign.Center)
+            }
+            Text(
+                "Cuando termine puedes borrar el archivo original para liberar espacio.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+        } else {
+            Button(onClick = onChoose, modifier = Modifier.heightIn(min = 52.dp)) {
+                Text("Elegir archivo del modelo")
+            }
+        }
+    }
+}
+
+@Composable
+private fun ModelStatusBanner(
+    status: ModelStatus,
+    canChange: Boolean,
+    onRetry: () -> Unit,
+    onChoose: () -> Unit,
+) {
     when (status) {
-        ModelStatus.Ready -> Unit
+        is ModelStatus.Ready -> Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                "Modelo: ${status.modelName}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(onClick = onChoose, enabled = canChange) { Text("Cambiar") }
+        }
         ModelStatus.Loading -> Row(
             modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -227,9 +326,14 @@ private fun ModelStatusBanner(status: ModelStatus, onRetry: () -> Unit) {
         ) {
             Column(Modifier.padding(12.dp)) {
                 Text(status.message, color = MaterialTheme.colorScheme.onErrorContainer)
-                TextButton(onClick = onRetry) { Text("Reintentar") }
+                Row {
+                    TextButton(onClick = onRetry) { Text("Reintentar") }
+                    TextButton(onClick = onChoose) { Text("Elegir otro archivo") }
+                }
             }
         }
+        // Estos dos estados se muestran a pantalla completa con ModelSetupScreen.
+        ModelStatus.NotSelected, is ModelStatus.Importing -> Unit
     }
 }
 

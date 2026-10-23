@@ -1,6 +1,9 @@
 package com.chefdesobras.app
 
 import android.app.Application
+import android.content.Context
+import android.net.Uri
+import android.provider.OpenableColumns
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -39,7 +42,11 @@ enum class RecipePreference(val label: String, val promptRule: String) {
 
 sealed interface ModelStatus {
     data object Loading : ModelStatus
-    data object Ready : ModelStatus
+    /** No hay ningún modelo: la app pide elegir el archivo descargado. */
+    data object NotSelected : ModelStatus
+    /** Copiando el archivo elegido al almacenamiento de la app; progress va de 0 a 1 (null si no se sabe el tamaño). */
+    data class Importing(val fileName: String, val progress: Float?) : ModelStatus
+    data class Ready(val modelName: String) : ModelStatus
     data class Error(val message: String) : ModelStatus
 }
 
@@ -64,6 +71,7 @@ data class ChefUiState(
 class ChefViewModel(application: Application) : AndroidViewModel(application) {
 
     private val store = IngredientStore(application)
+    private val modelPrefs = application.getSharedPreferences("modelo", Context.MODE_PRIVATE)
 
     private val _uiState = MutableStateFlow(ChefUiState(ingredients = sorted(store.load())))
     val uiState: StateFlow<ChefUiState> = _uiState.asStateFlow()
@@ -83,11 +91,7 @@ class ChefViewModel(application: Application) : AndroidViewModel(application) {
             val status = withContext(Dispatchers.IO) {
                 inferenceMutex.withLock {
                     try {
-                        val modelFile = findModelFile()
-                            ?: return@withLock ModelStatus.Error(
-                                "No se encontró el modelo. Copia model.task en " +
-                                    "$DEVICE_MODEL_PATH o en ${externalModelFile()?.absolutePath}."
-                            )
+                        val modelFile = findModelFile() ?: return@withLock ModelStatus.NotSelected
                         val options = LlmInference.LlmInferenceOptions.builder()
                             .setModelPath(modelFile.absolutePath)
                             .setMaxTokens(MAX_TOKENS)
@@ -95,7 +99,7 @@ class ChefViewModel(application: Application) : AndroidViewModel(application) {
                             .build()
                         llmInference?.close()
                         llmInference = LlmInference.createFromOptions(getApplication(), options)
-                        ModelStatus.Ready
+                        ModelStatus.Ready(modelFile.name)
                     } catch (e: Exception) {
                         Log.e(TAG, "Error al cargar el modelo", e)
                         ModelStatus.Error("No se pudo cargar el modelo: ${e.message}")
@@ -108,11 +112,13 @@ class ChefViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * Busca el modelo, en este orden:
+     * 0. El archivo que el usuario eligió con el selector (copiado a filesDir/models).
      * 1. /data/local/tmp/llm/model.task (adb push, cómodo en desarrollo).
      * 2. Almacenamiento externo de la app: Android/data/<paquete>/files/model.task.
      * 3. assets/model.task, copiado una vez a filesDir (solo para modelos pequeños).
      */
     private fun findModelFile(): File? {
+        modelPrefs.getString(KEY_MODEL_PATH, null)?.let(::File)?.takeIf { it.canRead() }?.let { return it }
         File(DEVICE_MODEL_PATH).takeIf { it.canRead() }?.let { return it }
         externalModelFile()?.takeIf { it.canRead() }?.let { return it }
         return copyModelFromAssets()
@@ -135,6 +141,89 @@ class ChefViewModel(application: Application) : AndroidViewModel(application) {
         } catch (e: Exception) {
             null
         }
+    }
+
+    /**
+     * Importa el modelo que el usuario eligió con el selector de archivos.
+     * MediaPipe necesita una ruta de archivo real, así que se copia a filesDir/models
+     * (una sola vez) y se borra el modelo anterior para no ocupar el doble de espacio.
+     */
+    fun importModel(uri: Uri) {
+        val previous = _uiState.value.modelStatus
+        if (_uiState.value.isGenerating || previous is ModelStatus.Importing) return
+        val app = getApplication<Application>()
+        viewModelScope.launch {
+            var partFile: File? = null
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    val (name, size) = queryNameAndSize(app, uri)
+                    require(name.endsWith(".task", ignoreCase = true) || name.endsWith(".bin", ignoreCase = true)) {
+                        "«$name» no parece un modelo. Elige un archivo .task."
+                    }
+                    val dir = File(app.filesDir, MODELS_DIR).apply { mkdirs() }
+                    if (size > 0 && dir.usableSpace < size + SPACE_MARGIN_BYTES) {
+                        error("No hay espacio suficiente: el modelo ocupa ${size / 1_000_000} MB.")
+                    }
+                    _uiState.update { it.copy(modelStatus = ModelStatus.Importing(name, if (size > 0) 0f else null)) }
+                    val part = File(dir, "$name.part").also { partFile = it }
+                    val input = app.contentResolver.openInputStream(uri) ?: error("No se pudo abrir el archivo.")
+                    input.use { stream ->
+                        part.outputStream().use { out ->
+                            val buffer = ByteArray(1 shl 20)
+                            var copied = 0L
+                            var lastPercent = -1
+                            while (true) {
+                                val read = stream.read(buffer)
+                                if (read < 0) break
+                                out.write(buffer, 0, read)
+                                copied += read
+                                if (size > 0) {
+                                    val percent = (copied * 100 / size).toInt()
+                                    if (percent != lastPercent) {
+                                        lastPercent = percent
+                                        _uiState.update { it.copy(modelStatus = ModelStatus.Importing(name, percent / 100f)) }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    // Libera el modelo anterior antes de borrar su archivo.
+                    inferenceMutex.withLock {
+                        llmInference?.close()
+                        llmInference = null
+                    }
+                    dir.listFiles()?.filter { it != part }?.forEach { it.delete() }
+                    val target = File(dir, name)
+                    if (!part.renameTo(target)) error("No se pudo guardar el modelo.")
+                    modelPrefs.edit().putString(KEY_MODEL_PATH, target.absolutePath).apply()
+                }
+            }
+            result.fold(
+                onSuccess = { loadModel() },
+                onFailure = { e ->
+                    Log.e(TAG, "Error al importar el modelo", e)
+                    partFile?.delete()
+                    val restored = if (previous is ModelStatus.Ready && llmInference == null) ModelStatus.NotSelected else previous
+                    _uiState.update {
+                        it.copy(modelStatus = restored, message = e.message ?: "No se pudo importar el modelo.")
+                    }
+                },
+            )
+        }
+    }
+
+    private fun queryNameAndSize(context: Context, uri: Uri): Pair<String, Long> {
+        var name = "model.task"
+        var size = -1L
+        context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+                if (nameIndex >= 0) cursor.getString(nameIndex)?.let { name = it }
+                if (sizeIndex >= 0 && !cursor.isNull(sizeIndex)) size = cursor.getLong(sizeIndex)
+            }
+        }
+        return name.replace('/', '_') to size
     }
 
     /** Se llama al volver a la app: si cambió el día, se recalculan los días restantes. */
@@ -204,7 +293,7 @@ class ChefViewModel(application: Application) : AndroidViewModel(application) {
         val state = _uiState.value
         if (state.isGenerating) return
         val inference = llmInference
-        if (state.modelStatus != ModelStatus.Ready || inference == null) {
+        if (state.modelStatus !is ModelStatus.Ready || inference == null) {
             _uiState.update { it.copy(message = "El modelo todavía no está listo.") }
             return
         }
@@ -378,5 +467,8 @@ class ChefViewModel(application: Application) : AndroidViewModel(application) {
         private const val TOP_K = 40
         private const val TEMPERATURE = 0.7f
         private const val GENERATION_TIMEOUT_MS = 180_000L
+        private const val MODELS_DIR = "models"
+        private const val KEY_MODEL_PATH = "model_path"
+        private const val SPACE_MARGIN_BYTES = 50_000_000L
     }
 }
