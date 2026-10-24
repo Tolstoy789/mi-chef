@@ -1,6 +1,8 @@
 package com.chefdesobras.app
 
+import android.content.ClipData
 import android.content.Intent
+import android.widget.Toast
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -70,6 +72,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -89,6 +92,9 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -153,13 +159,14 @@ fun ChefScreen(viewModel: ChefViewModel = viewModel()) {
     val showSetup = state.modelStatus is ModelStatus.NotSelected || state.modelStatus is ModelStatus.Importing
 
     val today = state.todayEpochDay
-    val urgentCount = state.ingredients.count { it.daysLeft(today) in 0..ChefViewModel.URGENT_DAYS }
-    val expiredCount = state.ingredients.count { it.daysLeft(today) < 0 }
+    val urgentCount = state.ingredients.count { it.isUrgent(today) }
+    val expiredCount = state.ingredients.count { it.isExpired(today) }
+    val usableCount = state.ingredients.size - expiredCount
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Chef de Sobras") },
+                title = { Text("Mi Chefcito") },
                 actions = {
                     if (expiredCount > 0) {
                         TextButton(onClick = viewModel::clearExpired) { Text("Quitar caducados") }
@@ -186,7 +193,7 @@ fun ChefScreen(viewModel: ChefViewModel = viewModel()) {
                         Text(
                             when {
                                 state.isGenerating -> "Generando…"
-                                urgentCount > 0 -> "Generar Receta ($urgentCount)"
+                                usableCount > 0 -> "Generar Receta ($usableCount)"
                                 else -> "Generar Receta"
                             }
                         )
@@ -263,7 +270,7 @@ private fun ModelSetupScreen(status: ModelStatus, onChoose: () -> Unit, modifier
             textAlign = TextAlign.Center,
         )
         Text(
-            "Chef de Sobras usa Gemma dentro de tu teléfono, sin internet. Elige el archivo .task " +
+            "Mi Chefcito usa Gemma dentro de tu teléfono, sin internet. Elige el archivo .task " +
                 "que descargaste, por ejemplo gemma3-1b-it-int4.task. Se copia una sola vez dentro de la app.",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -363,7 +370,7 @@ private fun IngredientForm(onAdd: (String, String) -> Boolean) {
             OutlinedTextField(
                 value = days,
                 onValueChange = { input -> days = input.filter(Char::isDigit).take(3) },
-                label = { Text("Días para caducar") },
+                label = { Text("Días para caducar (opcional)") },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Number,
@@ -445,15 +452,15 @@ private fun IngredientList(
 @Composable
 private fun IngredientRow(ingredient: Ingredient, today: Long, onRemove: () -> Unit) {
     val days = ingredient.daysLeft(today)
-    val expired = days < 0
-    val urgent = days in 0..ChefViewModel.URGENT_DAYS
+    val expired = ingredient.isExpired(today)
+    val urgent = ingredient.isUrgent(today)
     val colors = MaterialTheme.colorScheme
     val (container, content) = when {
         expired -> colors.errorContainer to colors.onErrorContainer
         urgent -> colors.tertiaryContainer to colors.onTertiaryContainer
         else -> colors.surfaceVariant to colors.onSurfaceVariant
     }
-    val date = LocalDate.ofEpochDay(ingredient.expiryEpochDay).format(dateFormatter)
+    val date = ingredient.expiryEpochDay?.let { LocalDate.ofEpochDay(it).format(dateFormatter) }
     Card(colors = CardDefaults.cardColors(containerColor = container, contentColor = content)) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 4.dp),
@@ -463,6 +470,7 @@ private fun IngredientRow(ingredient: Ingredient, today: Long, onRemove: () -> U
                 Text(ingredient.name, style = MaterialTheme.typography.titleMedium)
                 Text(
                     text = when {
+                        days == null -> "Sin fecha de caducidad"
                         days < -1 -> "Caducó hace ${-days} días ($date)"
                         days == -1 -> "Caducó ayer ($date)"
                         days == 0 -> "Caduca hoy"
@@ -495,6 +503,40 @@ private fun RecipeScreen(
 ) {
     val context = LocalContext.current
     val scroll = rememberScrollState()
+    val scope = rememberCoroutineScope()
+
+    // «Guardar PDF»: el usuario elige dónde guardarlo (Descargas, Drive…).
+    val savePdf = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                runCatching {
+                    context.contentResolver.openOutputStream(uri)?.use { RecipePdf.write(recipe.text, it) }
+                        ?: error("No se pudo abrir el archivo")
+                }.isSuccess
+            }
+            Toast.makeText(context, if (ok) "PDF guardado" else "No se pudo guardar el PDF", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun sharePdf() {
+        scope.launch {
+            val uri = withContext(Dispatchers.IO) {
+                runCatching { RecipePdf.createShareableFile(context, recipe.text) }.getOrNull()
+            }
+            if (uri == null) {
+                Toast.makeText(context, "No se pudo crear el PDF", Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+            val send = Intent(Intent.ACTION_SEND)
+                .setType("application/pdf")
+                .putExtra(Intent.EXTRA_STREAM, uri)
+                .putExtra(Intent.EXTRA_SUBJECT, RecipePdf.recipeTitle(recipe.text) ?: "Receta de Mi Chefcito")
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            send.clipData = ClipData.newRawUri("", uri)
+            context.startActivity(Intent.createChooser(send, "Compartir receta en PDF"))
+        }
+    }
 
     // Mientras el modelo escribe, la vista sigue el texto hacia abajo.
     LaunchedEffect(recipe.text.length) {
@@ -543,29 +585,29 @@ private fun RecipeScreen(
                 )
                 if (!recipe.isGenerating) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(
-                            onClick = {
-                                val send = Intent(Intent.ACTION_SEND)
-                                    .setType("text/plain")
-                                    .putExtra(Intent.EXTRA_TEXT, recipe.text)
-                                context.startActivity(Intent.createChooser(send, "Compartir receta"))
-                            },
-                            modifier = Modifier.weight(1f),
-                        ) {
+                        Button(onClick = { sharePdf() }, modifier = Modifier.weight(1f)) {
                             Icon(Icons.Filled.Share, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(6.dp))
-                            Text("Compartir")
+                            Text("Compartir PDF")
                         }
+                        OutlinedButton(
+                            onClick = { savePdf.launch(RecipePdf.suggestedFileName(recipe.text)) },
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Text("Guardar PDF")
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(onClick = onRegenerate, modifier = Modifier.weight(1f)) {
                             Icon(Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(6.dp))
                             Text("Otra receta")
                         }
-                    }
-                    Button(onClick = onCooked, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
-                        Icon(Icons.Filled.Check, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Ya lo cociné: quitar ingredientes usados")
+                        OutlinedButton(onClick = onCooked, modifier = Modifier.weight(1f)) {
+                            Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Ya lo cociné")
+                        }
                     }
                 }
             }

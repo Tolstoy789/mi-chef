@@ -18,7 +18,7 @@ class IngredientStore(context: Context) {
                 Ingredient(
                     id = obj.getString("id"),
                     name = obj.getString("name"),
-                    expiryEpochDay = obj.getLong("expiryEpochDay"),
+                    expiryEpochDay = if (obj.isNull("expiryEpochDay")) null else obj.getLong("expiryEpochDay"),
                 )
             }
         } catch (e: Exception) {
@@ -33,7 +33,7 @@ class IngredientStore(context: Context) {
                 JSONObject()
                     .put("id", it.id)
                     .put("name", it.name)
-                    .put("expiryEpochDay", it.expiryEpochDay)
+                    .put("expiryEpochDay", it.expiryEpochDay ?: JSONObject.NULL)
             )
         }
         prefs.edit().putString(KEY_INGREDIENTS, array.toString()).apply()

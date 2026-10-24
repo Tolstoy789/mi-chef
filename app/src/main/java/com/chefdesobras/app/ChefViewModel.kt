@@ -25,13 +25,21 @@ import java.time.LocalDate
 import java.util.UUID
 import kotlin.coroutines.resume
 
-/** Se guarda la fecha de caducidad, no los días, para que la cuenta se actualice sola cada día. */
+/**
+ * La fecha de caducidad es opcional. Cuando se indica, se guarda la fecha (no los días)
+ * para que la cuenta se actualice sola cada día.
+ */
 data class Ingredient(
     val id: String = UUID.randomUUID().toString(),
     val name: String,
-    val expiryEpochDay: Long,
+    val expiryEpochDay: Long? = null,
 ) {
-    fun daysLeft(todayEpochDay: Long): Int = (expiryEpochDay - todayEpochDay).toInt()
+    fun daysLeft(todayEpochDay: Long): Int? = expiryEpochDay?.let { (it - todayEpochDay).toInt() }
+
+    fun isExpired(todayEpochDay: Long): Boolean = (daysLeft(todayEpochDay) ?: 0) < 0
+
+    fun isUrgent(todayEpochDay: Long): Boolean =
+        daysLeft(todayEpochDay)?.let { it in 0..ChefViewModel.URGENT_DAYS } == true
 }
 
 enum class RecipePreference(val label: String, val promptRule: String) {
@@ -236,11 +244,13 @@ class ChefViewModel(application: Application) : AndroidViewModel(application) {
 
     fun addIngredient(name: String, daysText: String): Boolean {
         val cleanName = name.trim().replaceFirstChar { it.uppercase() }
-        val days = daysText.trim().toIntOrNull()
+        // Los días son opcionales: vacío = ingrediente sin fecha de caducidad.
+        val daysInput = daysText.trim()
+        val days = daysInput.toIntOrNull()
         val error = when {
             cleanName.isEmpty() -> "Escribe el nombre del ingrediente."
-            days == null || days < 0 -> "Los días para caducar deben ser un número de 0 o más."
-            days > MAX_DAYS -> "Usa un valor de hasta $MAX_DAYS días."
+            daysInput.isNotEmpty() && (days == null || days < 0) -> "Los días para caducar deben ser un número de 0 o más."
+            days != null && days > MAX_DAYS -> "Usa un valor de hasta $MAX_DAYS días."
             else -> null
         }
         if (error != null) {
@@ -251,7 +261,7 @@ class ChefViewModel(application: Application) : AndroidViewModel(application) {
         updateIngredients { list ->
             // Si el ingrediente ya existe, se actualiza su fecha en vez de duplicarlo.
             list.filterNot { it.name.equals(cleanName, ignoreCase = true) } +
-                Ingredient(name = cleanName, expiryEpochDay = today + days!!)
+                Ingredient(name = cleanName, expiryEpochDay = days?.let { today + it })
         }
         return true
     }
@@ -274,7 +284,7 @@ class ChefViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearExpired() {
         val today = _uiState.value.todayEpochDay
-        val expired = _uiState.value.ingredients.filter { it.daysLeft(today) < 0 }
+        val expired = _uiState.value.ingredients.filter { it.isExpired(today) }
         if (expired.isEmpty()) return
         lastRemoved = expired
         updateIngredients { list -> list.filterNot { it in expired } }
@@ -298,21 +308,20 @@ class ChefViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
         val today = state.todayEpochDay
-        val urgent = state.ingredients.filter { it.daysLeft(today) in 0..URGENT_DAYS }
-        val pantry = state.ingredients.filter { it.daysLeft(today) > URGENT_DAYS }
-        if (urgent.isEmpty()) {
-            val hasExpired = state.ingredients.any { it.daysLeft(today) < 0 }
+        // La receta se hace con los ingredientes de la lista; los caducados se dejan fuera.
+        val usable = state.ingredients.filterNot { it.isExpired(today) }
+        if (usable.isEmpty()) {
             _uiState.update {
                 it.copy(
-                    message = if (hasExpired) "Solo quedan ingredientes caducados. Revísalos antes de cocinarlos."
-                    else "No hay ingredientes que caduquen en $URGENT_DAYS días o menos."
+                    message = if (state.ingredients.isNotEmpty()) "Solo quedan ingredientes caducados. Revísalos antes de cocinarlos."
+                    else "Agrega al menos un ingrediente para generar la receta."
                 )
             }
             return
         }
 
-        val prompt = buildPrompt(urgent, pantry, state.preferences, today)
-        _uiState.update { it.copy(recipe = RecipeState(usedIngredientIds = urgent.map(Ingredient::id).toSet())) }
+        val prompt = buildPrompt(usable, state.preferences, today)
+        _uiState.update { it.copy(recipe = RecipeState(usedIngredientIds = usable.map(Ingredient::id).toSet())) }
         viewModelScope.launch {
             val result = withContext(Dispatchers.Default) {
                 inferenceMutex.withLock {
@@ -374,13 +383,14 @@ class ChefViewModel(application: Application) : AndroidViewModel(application) {
     private fun cleanText(text: String): String = text.replace("**", "").replace("##", "").trim()
 
     private fun buildPrompt(
-        urgent: List<Ingredient>,
-        pantry: List<Ingredient>,
+        ingredients: List<Ingredient>,
         preferences: Set<RecipePreference>,
         today: Long,
     ): String {
+        val hasUrgent = ingredients.any { it.isUrgent(today) }
         val rules = buildList {
-            add("Usa todos los ingredientes de la primera lista, sin omitir ninguno.")
+            add("La receta se basa en los ingredientes de la lista: usa todos los que puedas combinar bien.")
+            if (hasUrgent) add("Los ingredientes marcados con «caduca» son obligatorios.")
             add(
                 "Además de esos, solo puedes añadir ingredientes básicos de despensa: sal, pimienta, " +
                     "aceite, agua, ajo, cebolla, especias secas, harina, azúcar o vinagre."
@@ -391,14 +401,14 @@ class ChefViewModel(application: Application) : AndroidViewModel(application) {
         }
         return buildString {
             appendLine("Eres un chef profesional especializado en cocina de aprovechamiento.")
-            appendLine("Crea UNA receta que use OBLIGATORIAMENTE todos estos ingredientes, que están a punto de caducar:")
-            urgent.forEach { appendLine("- ${it.name} (caduca ${daysLabel(it.daysLeft(today))})") }
-            if (pantry.isNotEmpty()) {
-                appendLine()
-                appendLine(
-                    "Si lo necesitas, también puedes usar estos ingredientes que tengo en casa: " +
-                        pantry.joinToString(", ") { it.name } + "."
-                )
+            appendLine("Crea UNA receta con estos ingredientes que tengo en casa:")
+            ingredients.forEach { ingredient ->
+                val days = ingredient.daysLeft(today)
+                if (ingredient.isUrgent(today) && days != null) {
+                    appendLine("- ${ingredient.name} (caduca ${daysLabel(days)})")
+                } else {
+                    appendLine("- ${ingredient.name}")
+                }
             }
             appendLine()
             appendLine("Reglas estrictas:")
@@ -443,7 +453,7 @@ class ChefViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun sorted(list: List<Ingredient>): List<Ingredient> =
-        list.sortedWith(compareBy<Ingredient> { it.expiryEpochDay }.thenBy { it.name.lowercase() })
+        list.sortedWith(compareBy<Ingredient> { it.expiryEpochDay ?: Long.MAX_VALUE }.thenBy { it.name.lowercase() })
 
     override fun onCleared() {
         // Se cierra tras la inferencia en curso, si la hay, para no liberar memoria nativa en uso.

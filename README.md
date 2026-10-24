@@ -1,6 +1,6 @@
-# Chef de Sobras
+# Mi Chefcito
 
-App Android (Kotlin + Jetpack Compose + Material 3) que sugiere recetas con los ingredientes que caducan en 3 días o menos, usando Gemma en el propio dispositivo con MediaPipe `LlmInference`. No necesita internet.
+App Android (Kotlin + Jetpack Compose + Material 3) que sugiere recetas con los ingredientes que tienes en casa (dando prioridad a los que caducan pronto), usando Gemma en el propio dispositivo con MediaPipe `LlmInference`. No necesita internet.
 
 ## Cómo abrirla
 
@@ -28,11 +28,11 @@ adb push gemma3-1b-it-int4.task /data/local/tmp/llm/model.task
 
 ## Funciones
 
-- Despensa guardada en el teléfono, ordenada por fecha de caducidad. Los urgentes (3 días o menos) y los caducados se marcan con colores, y hay un botón para quitar los caducados.
+- Despensa guardada en el teléfono. La fecha de caducidad es opcional; los que la tienen se ordenan primero. Los urgentes (3 días o menos) y los caducados se marcan con colores, y hay un botón para quitar los caducados.
 - Al eliminar un ingrediente aparece «Deshacer».
 - Preferencias para la receta: rápida, vegetariana o sin gluten.
-- El chef usa obligatoriamente los ingredientes urgentes y puede apoyarse en el resto de la despensa.
-- La receta se escribe en tiempo real en una pantalla completa, con botones para compartir, pedir otra receta o marcarla como cocinada (quita de la despensa lo que usó).
+- La receta se genera con los ingredientes de la lista (los caducados se dejan fuera) y los que caducan pronto son obligatorios.
+- La receta se escribe en tiempo real en una pantalla completa, con botones para compartir o guardar la receta en PDF, pedir otra receta o marcarla como cocinada (quita de la despensa lo que usó).
 - Icono adaptable y pantalla de inicio animada (sartén con brote).
 
 ## Decisiones tomadas
