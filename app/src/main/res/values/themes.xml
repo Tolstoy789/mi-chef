@@ -1,5 +1,8 @@
 <resources>
-    <style name="Theme.ChefDeSobras" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.ChefDeSobras" parent="android:Theme.Material.Light.NoActionBar">
+        <!-- El mismo crema de la app, para que no se vea un destello blanco al abrir -->
+        <item name="android:windowBackground">@color/cream</item>
+    </style>
 
     <!-- Pantalla de inicio animada (androidx.core:core-splashscreen) -->
     <style name="Theme.ChefDeSobras.Splash" parent="Theme.SplashScreen">

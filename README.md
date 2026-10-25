@@ -11,7 +11,7 @@ App Android (Kotlin + Jetpack Compose + Material 3) que sugiere recetas con los 
 
 El modelo pesa unos 500 MB o más, así que no va dentro del APK. Recomiendo **Gemma 3 1B IT int4** (`gemma3-1b-it-int4.task`), que se descarga de Hugging Face en `litert-community/Gemma3-1B-IT` (hay que aceptar la licencia de Gemma).
 
-Descárgalo en el teléfono (por ejemplo, en la carpeta Descargas). La primera vez que abras la app verás la pantalla «Elige el modelo de IA»: pulsa «Elegir archivo del modelo» y selecciona el `.task`. La app lo copia una sola vez a su almacenamiento interno (después puedes borrar el original) y lo recuerda. Para cambiarlo más tarde, pulsa «Cambiar» junto al nombre del modelo.
+Descárgalo en el teléfono (por ejemplo, en la carpeta Descargas). La primera vez que abras la app verás la pantalla «Elige el modelo de IA»: pulsa «Elegir archivo del modelo» y selecciona el `.task`. La app lo copia una sola vez a su almacenamiento interno (después puedes borrar el original) y lo recuerda. Para cambiarlo más tarde, pulsa «Cambiar el modelo de IA» en la tarjeta para agregar ingredientes.
 
 Para desarrollo también sigue funcionando copiarlo con adb:
 
@@ -22,17 +22,26 @@ adb push gemma3-1b-it-int4.task /data/local/tmp/llm/model.task
 
 ## Cómo funciona
 
-- **`MainActivity.kt`**: la UI en Compose. Formulario (Ingrediente + Días con teclado numérico), lista ordenada de menor a mayor caducidad con los urgentes resaltados, botón flotante "Generar Receta", indicador de carga y un diálogo con la receta.
-- **`ChefViewModel.kt`**: el estado (`StateFlow`), la carga de `LlmInference` en `Dispatchers.IO`, el filtro de ingredientes con 3 días o menos, el prompt estricto de chef y la inferencia en una corrutina. Cada receta usa una `LlmInferenceSession` nueva para no mezclar contexto.
-- **`app/build.gradle.kts`**: todas las dependencias, con versiones exactas.
+- **`MainActivity.kt`**: la navegación entre pantallas (inicio, generando, receta, modo cocina, «¡Buen provecho!» y favoritas), los avisos con «Deshacer» y compartir o guardar el PDF.
+- **`ChefViewModel.kt`**: todo el estado en un `StateFlow`: despensa, carga del modelo, generación en streaming, porciones, favoritas, temporizador de cada paso y las preguntas a Chefcito. Cada respuesta usa una `LlmInferenceSession` nueva y un mutex evita dos inferencias a la vez.
+- **`Prompts.kt`** y **`Recipe.kt`**: el prompt pide un formato fijo (nombre, tiempo, dificultad, porciones, calorías, tip, ingredientes con cantidad y pasos con minutos) y el parser lo convierte en una receta estructurada. Es tolerante: si el modelo se sale del formato, rescata lo que puede. También recalcula las cantidades al cambiar las porciones («1 taza» → «1½ tazas»).
+- **`HomeScreen.kt`**, **`GeneratingScreen.kt`**, **`RecipeScreen.kt`**, **`CookingScreen.kt`**, **`DoneScreen.kt`**: las pantallas, con los componentes de **`Components.kt`** y el tema de **`Theme.kt`**.
+- **`HandsFree.kt`**: el modo manos libres (lee los pasos en voz alta y escucha órdenes).
+- **`RecipePdf.kt`**: el PDF de la receta con el mismo estilo de la app.
 
 ## Funciones
 
+- Diseño «Warm Bento»: tarjetas cálidas, tipografía Nunito, la mascota Chefcito y animaciones suaves.
 - Despensa guardada en el teléfono. La fecha de caducidad es opcional; los que la tienen se ordenan primero. Los urgentes (3 días o menos) y los caducados se marcan con colores, y hay un botón para quitar los caducados.
-- Al eliminar un ingrediente aparece «Deshacer».
 - Preferencias para la receta: rápida, vegetariana o sin gluten.
-- La receta se genera con los ingredientes de la lista (los caducados se dejan fuera) y los que caducan pronto son obligatorios.
-- La receta se escribe en tiempo real en una pantalla completa, con botones para compartir o guardar la receta en PDF, pedir otra receta o marcarla como cocinada (quita de la despensa lo que usó).
+- Mientras se genera, se ve qué está haciendo Chefcito (elegir el plato, calcular ingredientes, escribir los pasos) y el texto que va saliendo.
+- Vista de receta: porciones ajustables (las cantidades se recalculan), tiempo, dificultad, calorías por porción, el «tip pro» de Chefcito y la lista de ingredientes con casillas; los que ya tienes en la despensa vienen marcados como «Detectado en tu despensa».
+- Favoritas: guarda una receta con el corazón y vuelve a abrirla sin generarla otra vez.
+- Modo guiado: un paso por pantalla con barra de progreso, temporizador con alarma y la pantalla siempre encendida.
+- Manos libres (opcional, pide permiso de micrófono): lee cada paso y entiende «siguiente», «anterior», «repite», «pausa», «inicia», «por qué» y «sustituir».
+- «Pregúntale a Chefcito»: en cada paso puedes preguntar «¿Por qué hacemos esto?» o pedir un sustituto de un ingrediente.
+- Al terminar, «¡Buen provecho!» con la opción de quitar de la despensa lo que usaste.
+- Compartir o guardar la receta en PDF.
 - Icono adaptable y pantalla de inicio animada (sartén con brote).
 
 ## Decisiones tomadas
@@ -42,3 +51,8 @@ adb push gemma3-1b-it-int4.task /data/local/tmp/llm/model.task
 - Los ingredientes se guardan en el teléfono (SharedPreferences) con su fecha de caducidad, así que la cuenta de días baja sola cada día.
 
 Nota: Google está migrando la inferencia LLM de MediaPipe hacia LiteRT-LM. Esta versión de MediaPipe sigue funcionando; si Android Studio te ofrece subir `tasks-genai`, revisa sus notas de versión antes.
+
+## Créditos
+
+- Tipografía [Nunito](https://github.com/googlefonts/nunito), licencia SIL Open Font License 1.1 (`licenses/OFL-Nunito.txt`).
+- Iconos de [Lucide](https://lucide.dev), licencia ISC (`licenses/ISC-Lucide.txt`).
