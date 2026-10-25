@@ -75,6 +75,11 @@ fun HomeScreen(
     onTogglePreference: (RecipePreference) -> Unit,
     onGenerate: () -> Unit,
     onOpenFavorites: () -> Unit,
+    onTakePhoto: () -> Unit,
+    onPickPhoto: () -> Unit,
+    onTogglePhotoItem: (Int) -> Unit,
+    onAddPhotoItems: (Boolean) -> Unit,
+    onDismissPhoto: () -> Unit,
 ) {
     val status = state.modelStatus
     if (status is ModelStatus.NotSelected || status is ModelStatus.Importing) {
@@ -101,11 +106,17 @@ fun HomeScreen(
             if (status is ModelStatus.Loading || status is ModelStatus.Error) {
                 ModelStatusCard(status, onPickModel, onRetryModel)
             }
+            val scan = state.photoScan
+            if (scan != null) {
+                PhotoScanCard(scan, onTogglePhotoItem, onAddPhotoItems, onDismissPhoto)
+            }
             AddIngredientCard(
                 modelReady = status is ModelStatus.Ready,
                 existing = state.ingredients,
                 onPickModel = onPickModel,
                 onAdd = onAddIngredient,
+                onTakePhoto = onTakePhoto,
+                onPickPhoto = onPickPhoto,
             )
             PreferencesCard(state.preferences, onTogglePreference)
             PantrySummary(state.ingredients, today, onClearExpired)
@@ -246,6 +257,8 @@ private fun AddIngredientCard(
     existing: List<Ingredient>,
     onPickModel: () -> Unit,
     onAdd: (String, String) -> Boolean,
+    onTakePhoto: () -> Unit,
+    onPickPhoto: () -> Unit,
 ) {
     var name by rememberSaveable { mutableStateOf("") }
     var days by rememberSaveable { mutableStateOf("") }
@@ -329,6 +342,24 @@ private fun AddIngredientCard(
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(ChefIcons.Plus, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
+                }
+            }
+            // Una foto de los productos: Chefcito reconoce los ingredientes.
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                SoftButton(
+                    onClick = onTakePhoto,
+                    modifier = Modifier.weight(1f),
+                    minHeight = 48.dp,
+                    corner = 16.dp,
+                    background = ChefColors.OrangeSoft,
+                    borderColor = ChefColors.OrangeSoftBorder,
+                ) {
+                    Icon(ChefIcons.Camera, contentDescription = null, tint = ChefColors.OrangeText, modifier = Modifier.size(18.dp))
+                    Text("Tomar foto", style = chefStyle(14f, FontWeight.ExtraBold, ChefColors.OrangeInk, lineHeight = 1.2f))
+                }
+                SoftButton(onClick = onPickPhoto, modifier = Modifier.weight(1f), minHeight = 48.dp, corner = 16.dp) {
+                    Icon(ChefIcons.Image, contentDescription = null, tint = ChefColors.OrangeText, modifier = Modifier.size(18.dp))
+                    Text("De la galería", style = chefStyle(14f, FontWeight.ExtraBold, lineHeight = 1.2f))
                 }
             }
             val suggestions = quickIngredients.filter { quick -> existing.none { it.name.equals(quick, ignoreCase = true) } }
@@ -419,6 +450,88 @@ fun ChefTextField(
             unfocusedTextColor = ChefColors.Text,
         ),
     )
+}
+
+/** Lo que Chefcito vio en la foto: el usuario marca qué agregar a la despensa. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun PhotoScanCard(
+    scan: PhotoScan,
+    onToggle: (Int) -> Unit,
+    onAdd: (Boolean) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    ChefCard(color = ChefColors.Bubble, borderColor = ChefColors.BubbleBorder) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                IconTile(ChefIcons.Camera, ChefColors.Peach, ChefColors.OrangeText)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        when {
+                            scan.loading -> "Chefcito está mirando tu foto…"
+                            scan.error != null -> "No salió esta vez"
+                            else -> "Esto vi en tu foto"
+                        },
+                        style = chefStyle(16f, FontWeight.Black, lineHeight = 1.25f),
+                    )
+                    Text(
+                        when {
+                            scan.loading -> "Puede tardar un poco: todo ocurre en tu teléfono."
+                            scan.error != null -> scan.error.orEmpty()
+                            else -> "Toca para quitar lo que no quieras agregar."
+                        },
+                        style = chefStyle(12.5f, FontWeight.SemiBold, ChefColors.Muted, lineHeight = 1.4f),
+                    )
+                }
+                RoundIconButton(ChefIcons.Close, "Cerrar", onDismiss, size = 36.dp, iconSize = 16.dp)
+            }
+            if (scan.loading) {
+                ThinkingDots()
+            } else if (scan.items.isNotEmpty()) {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    scan.items.forEachIndexed { index, item ->
+                        val isOn = index in scan.selected
+                        Row(
+                            modifier = Modifier
+                                .pressable(label = item, role = androidx.compose.ui.semantics.Role.Checkbox, onClick = { onToggle(index) })
+                                .clip(CircleShape)
+                                .background(if (isOn) ChefColors.GreenSoft else Color.White)
+                                .border(1.dp, if (isOn) ChefColors.GreenSoftBorder else ChefColors.CardBorder, CircleShape)
+                                .heightIn(min = 38.dp)
+                                .padding(horizontal = 12.dp, vertical = 7.dp),
+                            horizontalArrangement = Arrangement.spacedBy(5.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                if (isOn) ChefIcons.Check else ChefIcons.Plus,
+                                contentDescription = null,
+                                tint = if (isOn) ChefColors.Green else ChefColors.Muted,
+                                modifier = Modifier.size(14.dp),
+                            )
+                            Text(
+                                item,
+                                style = chefStyle(13.5f, FontWeight.ExtraBold, if (isOn) ChefColors.GreenDeep else ChefColors.Muted, lineHeight = 1.2f),
+                            )
+                        }
+                    }
+                }
+                val count = scan.selected.size
+                ChunkyButton(onClick = { onAdd(true) }, modifier = Modifier.fillMaxWidth(), enabled = count > 0, minHeight = 54.dp) {
+                    Icon(ChefIcons.Sparkles, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                    Text("Agregar y crear receta", style = chefStyle(17f, FontWeight.Black, Color.White, lineHeight = 1.2f))
+                }
+                SoftButton(onClick = { onAdd(false) }, modifier = Modifier.fillMaxWidth(), enabled = count > 0, minHeight = 46.dp, corner = 16.dp) {
+                    Text(
+                        if (count == 1) "Solo agregar 1 a mi despensa" else "Solo agregar $count a mi despensa",
+                        style = chefStyle(14f, FontWeight.ExtraBold, lineHeight = 1.2f),
+                    )
+                }
+            }
+        }
+    }
 }
 
 @OptIn(ExperimentalLayoutApi::class)

@@ -347,6 +347,21 @@ object ChefIcons {
             "M 15 2 s -2 1.33 -2 3.5 S 15 9 15 9 s 2 -1.84 2 -3.5 C 17 3.33 15 2 15 2 z",
         )
     }
+    val Camera: ImageVector by lazy {
+        lucide(
+            "Camera", 2.2f, false,
+            "M 14.5 4 h -5 L 7 7 H 4 a 2 2 0 0 0 -2 2 v 9 a 2 2 0 0 0 2 2 h 16 a 2 2 0 0 0 2 -2 V 9 a 2 2 0 0 0 -2 -2 h -3 l -2.5 -3 z",
+            "M 9 13 a 3 3 0 1 0 6 0 a 3 3 0 1 0 -6 0 Z",
+        )
+    }
+    val Image: ImageVector by lazy {
+        lucide(
+            "Image", 2.2f, false,
+            "M 5 3 h 14 a 2 2 0 0 1 2 2 v 14 a 2 2 0 0 1 -2 2 H 5 a 2 2 0 0 1 -2 -2 V 5 a 2 2 0 0 1 2 -2 Z",
+            "M 7 9 a 2 2 0 1 0 4 0 a 2 2 0 1 0 -4 0 Z",
+            "m 21 15 l -3.086 -3.086 a 2 2 0 0 0 -2.828 0 L 6 21",
+        )
+    }
     val Lightbulb: ImageVector by lazy {
         lucide(
             "Lightbulb", 2.2f, false,

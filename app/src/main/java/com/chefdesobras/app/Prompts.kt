@@ -79,4 +79,10 @@ object Prompts {
         1 -> "mañana"
         else -> "en $days días"
     }
+
+    fun photo(): String = """
+        Eres un chef. Mira la foto y enumera los alimentos e ingredientes de cocina que se ven (frutas, verduras, carnes, lácteos, paquetes, latas, especias…).
+        Responde solo con la lista, un ingrediente por línea empezando con "- ", con nombres cortos en español y sin cantidades ni marcas.
+        Si no se ve ningún alimento, responde solo: NINGUNO
+    """.trimIndent()
 }

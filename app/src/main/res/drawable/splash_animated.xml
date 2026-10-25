@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Animación de inicio (Propuesta A): la sartén sube, el brote crece con rebote y sale vapor.
+    Animación de inicio de Chefcito: el círculo naranja aparece con un rebote, el gorro cae
+    sobre él, brillan las chispas de IA y al final salta la insignia verde.
     Los valores estáticos del vector son el icono completo, así en Android < 12
     (donde la pantalla de inicio no se anima) se ve el icono final.
 -->
@@ -13,75 +14,81 @@
             android:viewportWidth="108"
             android:viewportHeight="108">
             <group
+                android:name="disc"
                 android:pivotX="54"
-                android:pivotY="54"
-                android:scaleX="0.78"
-                android:scaleY="0.78"
-                android:translateY="-4">
-                <group android:name="steam">
+                android:pivotY="54">
+                <path
+                    android:fillColor="#D9481F"
+                    android:pathData="M24,56.5a30,30 0,1 0,60,0a30,30 0,1 0,-60,0Z" />
+                <path
+                    android:fillColor="#FF6B4A"
+                    android:pathData="M24,54a30,30 0,1 0,60,0a30,30 0,1 0,-60,0Z" />
+            </group>
+            <group
+                android:name="hat"
+                android:pivotX="54"
+                android:pivotY="60">
+                <group android:translateX="31.80" android:translateY="30.30" android:scaleX="1.85" android:scaleY="1.85">
                     <path
-                        android:name="steamPaths"
-                        android:pathData="M44,30q-3,-4 0,-8M56,28q3,-4 0,-8M50,26q-3,-4 0,-8"
-                        android:strokeAlpha="0"
-                        android:strokeColor="#F6EFE2"
-                        android:strokeLineCap="round"
-                        android:strokeWidth="2.2" />
-                </group>
-                <group android:name="pan">
-                    <path android:fillColor="#F6EFE2" android:pathData="M71.5,60h19a3.5,3.5 0,0 1,0 7h-19a3.5,3.5 0,0 1,0 -7z" />
-                    <path android:fillColor="#F6EFE2" android:pathData="M28,63a22,22 0,1 0,44 0a22,22 0,1 0,-44 0z" />
-                    <path android:fillColor="#E6DAC2" android:pathData="M34,63a16,16 0,1 0,32 0a16,16 0,1 0,-32 0z" />
-                    <path android:fillColor="#E4572E" android:pathData="M36,67a5,5 0,1 0,10 0a5,5 0,1 0,-10 0z" />
+                        android:fillColor="#FFFFFF"
+                        android:pathData="M17,21a1,1 0,0 0,1 -1v-5.35c0,-0.457 0.316,-0.844 0.727,-1.041a4,4 0,0 0,-2.134 -7.589a5,5 0,0 0,-9.186 0a4,4 0,0 0,-2.134 7.588c0.411,0.198 0.727,0.585 0.727,1.041V20a1,1 0,0 0,1 1Z" />
                     <path
-                        android:pathData="M50,64V44"
-                        android:strokeColor="#4E9A57"
-                        android:strokeLineCap="round"
-                        android:strokeWidth="3" />
+                        android:fillColor="#FFD9C7"
+                        android:pathData="M6,17.6h12V20a1,1 0,0 1,-1 1H7a1,1 0,0 1,-1 -1Z" />
                 </group>
-                <group
-                    android:name="leafLeft"
-                    android:pivotX="50"
-                    android:pivotY="50">
-                    <path android:fillColor="#7BC47F" android:pathData="M50,50C42,49 37,41 39,34C47,35 52,42 50,50Z" />
-                </group>
-                <group
-                    android:name="leafRight"
-                    android:pivotX="50"
-                    android:pivotY="46">
-                    <path android:fillColor="#A8D672" android:pathData="M50,46C55,39 63,38 68,42C64,49 56,50 50,46Z" />
-                </group>
+            </group>
+            <group
+                android:name="sparkleA"
+                android:pivotX="71"
+                android:pivotY="36">
+                <path
+                    android:fillColor="#FFE3A3"
+                    android:pathData="M71,31.4Q71.92,35.08 75.6,36Q71.92,36.92 71,40.6Q70.08,36.92 66.4,36Q70.08,35.08 71,31.4Z" />
+            </group>
+            <group
+                android:name="sparkleB"
+                android:pivotX="37.5"
+                android:pivotY="41">
+                <path
+                    android:fillColor="#FFE3A3"
+                    android:pathData="M37.5,38Q38.1,40.4 40.5,41Q38.1,41.6 37.5,44Q36.9,41.6 34.5,41Q36.9,40.4 37.5,38Z" />
+            </group>
+            <group
+                android:name="badge"
+                android:pivotX="70"
+                android:pivotY="70">
+                <path
+                    android:fillColor="#FFFFFF"
+                    android:pathData="M61.4,70a8.6,8.6 0,1 0,17.2,0a8.6,8.6 0,1 0,-17.2,0Z" />
+                <path
+                    android:fillColor="#38A169"
+                    android:pathData="M63.4,70a6.6,6.6 0,1 0,13.2,0a6.6,6.6 0,1 0,-13.2,0Z" />
+                <path
+                    android:strokeColor="#FFFFFF"
+                    android:strokeWidth="2.2"
+                    android:strokeLineCap="round"
+                    android:strokeLineJoin="round"
+                    android:pathData="M66.87,70.28L69.08,72.48L73.31,67.88" />
             </group>
         </vector>
     </aapt:attr>
 
-    <target android:name="pan">
-        <aapt:attr name="android:animation">
-            <objectAnimator
-                android:duration="320"
-                android:interpolator="@android:interpolator/fast_out_slow_in"
-                android:propertyName="translateY"
-                android:valueFrom="30"
-                android:valueTo="0"
-                android:valueType="floatType" />
-        </aapt:attr>
-    </target>
-
-    <target android:name="leafLeft">
+    <target android:name="disc">
         <aapt:attr name="android:animation">
             <set>
                 <objectAnimator
-                    android:duration="380"
+                    android:duration="420"
                     android:interpolator="@android:anim/overshoot_interpolator"
                     android:propertyName="scaleX"
-                    android:startOffset="240"
+                    android:startOffset="0"
                     android:valueFrom="0"
                     android:valueTo="1"
                     android:valueType="floatType" />
                 <objectAnimator
-                    android:duration="380"
+                    android:duration="420"
                     android:interpolator="@android:anim/overshoot_interpolator"
                     android:propertyName="scaleY"
-                    android:startOffset="240"
+                    android:startOffset="0"
                     android:valueFrom="0"
                     android:valueTo="1"
                     android:valueType="floatType" />
@@ -89,56 +96,125 @@
         </aapt:attr>
     </target>
 
-    <target android:name="leafRight">
+    <target android:name="hat">
         <aapt:attr name="android:animation">
             <set>
                 <objectAnimator
-                    android:duration="380"
+                    android:duration="420"
                     android:interpolator="@android:anim/overshoot_interpolator"
                     android:propertyName="scaleX"
-                    android:startOffset="320"
+                    android:startOffset="160"
                     android:valueFrom="0"
                     android:valueTo="1"
                     android:valueType="floatType" />
                 <objectAnimator
-                    android:duration="380"
+                    android:duration="420"
                     android:interpolator="@android:anim/overshoot_interpolator"
                     android:propertyName="scaleY"
-                    android:startOffset="320"
+                    android:startOffset="160"
                     android:valueFrom="0"
                     android:valueTo="1"
+                    android:valueType="floatType" />
+                <objectAnimator
+                    android:duration="460"
+                    android:interpolator="@android:anim/overshoot_interpolator"
+                    android:propertyName="translateY"
+                    android:startOffset="160"
+                    android:valueFrom="-24"
+                    android:valueTo="0"
+                    android:valueType="floatType" />
+                <objectAnimator
+                    android:duration="520"
+                    android:interpolator="@android:anim/overshoot_interpolator"
+                    android:propertyName="rotation"
+                    android:startOffset="160"
+                    android:valueFrom="-16"
+                    android:valueTo="0"
                     android:valueType="floatType" />
             </set>
         </aapt:attr>
     </target>
 
-    <target android:name="steam">
+    <target android:name="sparkleA">
         <aapt:attr name="android:animation">
-            <objectAnimator
-                android:duration="420"
-                android:propertyName="translateY"
-                android:startOffset="560"
-                android:valueFrom="4"
-                android:valueTo="-6"
-                android:valueType="floatType" />
+            <set>
+                <objectAnimator
+                    android:duration="320"
+                    android:interpolator="@android:anim/overshoot_interpolator"
+                    android:propertyName="scaleX"
+                    android:startOffset="520"
+                    android:valueFrom="0"
+                    android:valueTo="1"
+                    android:valueType="floatType" />
+                <objectAnimator
+                    android:duration="320"
+                    android:interpolator="@android:anim/overshoot_interpolator"
+                    android:propertyName="scaleY"
+                    android:startOffset="520"
+                    android:valueFrom="0"
+                    android:valueTo="1"
+                    android:valueType="floatType" />
+                <objectAnimator
+                    android:duration="420"
+                    android:interpolator="@android:interpolator/fast_out_slow_in"
+                    android:propertyName="rotation"
+                    android:startOffset="520"
+                    android:valueFrom="-90"
+                    android:valueTo="0"
+                    android:valueType="floatType" />
+            </set>
         </aapt:attr>
     </target>
 
-    <target android:name="steamPaths">
+    <target android:name="sparkleB">
         <aapt:attr name="android:animation">
-            <set android:ordering="sequentially">
+            <set>
                 <objectAnimator
-                    android:duration="180"
-                    android:propertyName="strokeAlpha"
+                    android:duration="300"
+                    android:interpolator="@android:anim/overshoot_interpolator"
+                    android:propertyName="scaleX"
+                    android:startOffset="620"
+                    android:valueFrom="0"
+                    android:valueTo="1"
+                    android:valueType="floatType" />
+                <objectAnimator
+                    android:duration="300"
+                    android:interpolator="@android:anim/overshoot_interpolator"
+                    android:propertyName="scaleY"
+                    android:startOffset="620"
+                    android:valueFrom="0"
+                    android:valueTo="1"
+                    android:valueType="floatType" />
+                <objectAnimator
+                    android:duration="380"
+                    android:interpolator="@android:interpolator/fast_out_slow_in"
+                    android:propertyName="rotation"
+                    android:startOffset="620"
+                    android:valueFrom="90"
+                    android:valueTo="0"
+                    android:valueType="floatType" />
+            </set>
+        </aapt:attr>
+    </target>
+
+    <target android:name="badge">
+        <aapt:attr name="android:animation">
+            <set>
+                <objectAnimator
+                    android:duration="360"
+                    android:interpolator="@android:anim/overshoot_interpolator"
+                    android:propertyName="scaleX"
                     android:startOffset="560"
                     android:valueFrom="0"
-                    android:valueTo="0.85"
+                    android:valueTo="1"
                     android:valueType="floatType" />
                 <objectAnimator
-                    android:duration="240"
-                    android:propertyName="strokeAlpha"
-                    android:valueFrom="0.85"
-                    android:valueTo="0"
+                    android:duration="360"
+                    android:interpolator="@android:anim/overshoot_interpolator"
+                    android:propertyName="scaleY"
+                    android:startOffset="560"
+                    android:valueFrom="0"
+                    android:valueTo="1"
                     android:valueType="floatType" />
             </set>
         </aapt:attr>

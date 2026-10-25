@@ -34,6 +34,7 @@ adb push gemma3-1b-it-int4.task /data/local/tmp/llm/model.task
 - Diseño «Warm Bento»: tarjetas cálidas, tipografía Nunito, la mascota Chefcito y animaciones suaves.
 - Despensa guardada en el teléfono. La fecha de caducidad es opcional; los que la tienen se ordenan primero. Los urgentes (3 días o menos) y los caducados se marcan con colores, y hay un botón para quitar los caducados.
 - Preferencias para la receta: rápida, vegetariana o sin gluten.
+- Foto de tus productos (cámara o galería): Chefcito reconoce los ingredientes, eliges cuáles agregar y puede crear la receta en seguida. Necesita un modelo con visión, como **Gemma 3n E2B** (`gemma-3n-E2B-it-int4.task`, en Hugging Face `google/gemma-3n-E2B-it-litert-preview`); con Gemma 3 1B la app avisa que escribas los ingredientes.
 - Mientras se genera, se ve qué está haciendo Chefcito (elegir el plato, calcular ingredientes, escribir los pasos) y el texto que va saliendo.
 - Vista de receta: porciones ajustables (las cantidades se recalculan), tiempo, dificultad, calorías por porción, el «tip pro» de Chefcito y la lista de ingredientes con casillas; los que ya tienes en la despensa vienen marcados como «Detectado en tu despensa».
 - Favoritas: guarda una receta con el corazón y vuelve a abrirla sin generarla otra vez.
@@ -42,7 +43,7 @@ adb push gemma3-1b-it-int4.task /data/local/tmp/llm/model.task
 - «Pregúntale a Chefcito»: en cada paso puedes preguntar «¿Por qué hacemos esto?» o pedir un sustituto de un ingrediente.
 - Al terminar, «¡Buen provecho!» con la opción de quitar de la despensa lo que usaste.
 - Compartir o guardar la receta en PDF.
-- Icono adaptable y pantalla de inicio animada (sartén con brote).
+- Icono de Chefcito (gorro blanco, insignia verde y chispas de IA) con versión temática para Android 13, y animación de inicio sobre fondo crema.
 
 ## Decisiones tomadas
 

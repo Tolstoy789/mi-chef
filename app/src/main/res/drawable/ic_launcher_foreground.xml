@@ -1,26 +1,34 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Propuesta A: sartén con brote. Contenido dentro de la zona segura de 66dp. -->
+<!-- Chefcito: gorro blanco, insignia verde y chispas de IA. Contenido dentro de la zona segura de 66dp. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <group
-        android:pivotX="54"
-        android:pivotY="54"
-        android:scaleX="0.78"
-        android:scaleY="0.78"
-        android:translateY="-4">
-        <path android:fillColor="#F6EFE2" android:pathData="M71.5,60h19a3.5,3.5 0,0 1,0 7h-19a3.5,3.5 0,0 1,0 -7z" />
-        <path android:fillColor="#F6EFE2" android:pathData="M28,63a22,22 0,1 0,44 0a22,22 0,1 0,-44 0z" />
-        <path android:fillColor="#E6DAC2" android:pathData="M34,63a16,16 0,1 0,32 0a16,16 0,1 0,-32 0z" />
-        <path android:fillColor="#E4572E" android:pathData="M36,67a5,5 0,1 0,10 0a5,5 0,1 0,-10 0z" />
+    <group android:translateX="26.60" android:translateY="25.60" android:scaleX="2.2" android:scaleY="2.2">
         <path
-            android:pathData="M50,64V44"
-            android:strokeColor="#4E9A57"
-            android:strokeLineCap="round"
-            android:strokeWidth="3" />
-        <path android:fillColor="#7BC47F" android:pathData="M50,50C42,49 37,41 39,34C47,35 52,42 50,50Z" />
-        <path android:fillColor="#A8D672" android:pathData="M50,46C55,39 63,38 68,42C64,49 56,50 50,46Z" />
+            android:fillColor="#FFFFFF"
+            android:pathData="M17,21a1,1 0,0 0,1 -1v-5.35c0,-0.457 0.316,-0.844 0.727,-1.041a4,4 0,0 0,-2.134 -7.589a5,5 0,0 0,-9.186 0a4,4 0,0 0,-2.134 7.588c0.411,0.198 0.727,0.585 0.727,1.041V20a1,1 0,0 0,1 1Z" />
+        <path
+            android:fillColor="#FFD9C7"
+            android:pathData="M6,17.6h12V20a1,1 0,0 1,-1 1H7a1,1 0,0 1,-1 -1Z" />
     </group>
+    <path
+        android:fillColor="#FFE3A3"
+        android:pathData="M73,31Q74.2,35.8 79,37Q74.2,38.2 73,43Q71.8,38.2 67,37Q71.8,35.8 73,31Z" />
+    <path
+        android:fillColor="#FFE3A3"
+        android:pathData="M35.5,36.6Q36.18,39.32 38.9,40Q36.18,40.68 35.5,43.4Q34.82,40.68 32.1,40Q34.82,39.32 35.5,36.6Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M58,68a9,9 0,1 0,18,0a9,9 0,1 0,-18,0Z" />
+    <path
+        android:fillColor="#38A169"
+        android:pathData="M60,68a7,7 0,1 0,14,0a7,7 0,1 0,-14,0Z" />
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M63.60,68.30L66.00,70.70L70.60,65.70" />
 </vector>

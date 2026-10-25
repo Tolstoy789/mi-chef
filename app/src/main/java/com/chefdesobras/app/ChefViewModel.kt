@@ -2,6 +2,7 @@ package com.chefdesobras.app
 
 import android.app.Application
 import android.content.Context
+import android.graphics.Bitmap
 import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
@@ -13,6 +14,8 @@ import android.provider.OpenableColumns
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.mediapipe.framework.image.BitmapImageBuilder
+import com.google.mediapipe.tasks.genai.llminference.GraphOptions
 import com.google.mediapipe.tasks.genai.llminference.LlmInference
 import com.google.mediapipe.tasks.genai.llminference.LlmInferenceSession
 import kotlinx.coroutines.CompletableDeferred
@@ -92,6 +95,14 @@ data class CookingState(
     val alarmCount: Int = 0,
 )
 
+/** Ingredientes que el modelo vio en una foto, antes de agregarlos a la despensa. */
+data class PhotoScan(
+    val loading: Boolean = true,
+    val items: List<String> = emptyList(),
+    val selected: Set<Int> = emptySet(),
+    val error: String? = null,
+)
+
 data class ChefUiState(
     val screen: Screen = Screen.Home,
     val ingredients: List<Ingredient> = emptyList(),
@@ -108,6 +119,9 @@ data class ChefUiState(
     val pantryMatches: Set<Int> = emptySet(),
     val cooking: CookingState = CookingState(),
     val favorites: List<Recipe> = emptyList(),
+    /** El modelo cargado entiende imágenes (Gemma 3n). */
+    val canReadPhotos: Boolean = false,
+    val photoScan: PhotoScan? = null,
     val message: String? = null,
     val messageCanUndo: Boolean = false,
 ) {
@@ -134,6 +148,7 @@ class ChefViewModel(application: Application) : AndroidViewModel(application) {
     // Cada petición lleva un número: si el usuario cancela o pide otra, la respuesta vieja se ignora.
     @Volatile private var generationId = 0
     @Volatile private var assistId = 0
+    @Volatile private var photoId = 0
     private val assistCache = mutableMapOf<Triple<String, Int, AssistKind>, String>()
 
     private var timerJob: Job? = null
@@ -152,13 +167,19 @@ class ChefViewModel(application: Application) : AndroidViewModel(application) {
                 inferenceMutex.withLock {
                     try {
                         val modelFile = findModelFile() ?: return@withLock ModelStatus.NotSelected
-                        val options = LlmInference.LlmInferenceOptions.builder()
-                            .setModelPath(modelFile.absolutePath)
-                            .setMaxTokens(MAX_TOKENS)
-                            .setMaxTopK(TOP_K)
-                            .build()
                         llmInference?.close()
-                        llmInference = LlmInference.createFromOptions(getApplication(), options)
+                        llmInference = null
+                        // Gemma 3n también entiende fotos; si no se puede cargar con visión, se carga solo con texto.
+                        var images = modelFile.name.contains("3n", ignoreCase = true)
+                        llmInference = try {
+                            createEngine(modelFile, images)
+                        } catch (e: Exception) {
+                            if (!images) throw e
+                            Log.w(TAG, "El modelo no cargó con visión; se usa solo texto", e)
+                            images = false
+                            createEngine(modelFile, false)
+                        }
+                        _uiState.update { it.copy(canReadPhotos = images) }
                         ModelStatus.Ready(modelFile.name)
                     } catch (e: Exception) {
                         Log.e(TAG, "Error al cargar el modelo", e)
@@ -168,6 +189,15 @@ class ChefViewModel(application: Application) : AndroidViewModel(application) {
             }
             _uiState.update { it.copy(modelStatus = status) }
         }
+    }
+
+    private fun createEngine(file: File, images: Boolean): LlmInference {
+        val builder = LlmInference.LlmInferenceOptions.builder()
+            .setModelPath(file.absolutePath)
+            .setMaxTokens(MAX_TOKENS)
+            .setMaxTopK(TOP_K)
+        if (images) builder.setMaxNumImages(1)
+        return LlmInference.createFromOptions(getApplication(), builder.build())
     }
 
     /**
@@ -430,15 +460,19 @@ class ChefViewModel(application: Application) : AndroidViewModel(application) {
     private suspend fun runInference(
         inference: LlmInference,
         prompt: String,
+        image: Bitmap? = null,
         onPartial: (String) -> Unit,
     ): String {
-        val sessionOptions = LlmInferenceSession.LlmInferenceSessionOptions.builder()
+        val sessionBuilder = LlmInferenceSession.LlmInferenceSessionOptions.builder()
             .setTopK(TOP_K)
             .setTemperature(TEMPERATURE)
-            .build()
-        val session = LlmInferenceSession.createFromOptions(inference, sessionOptions)
+        if (image != null) {
+            sessionBuilder.setGraphOptions(GraphOptions.builder().setEnableVisionModality(true).build())
+        }
+        val session = LlmInferenceSession.createFromOptions(inference, sessionBuilder.build())
         try {
             session.addQueryChunk(prompt)
+            if (image != null) session.addImage(BitmapImageBuilder(image).build())
             val finished = CompletableDeferred<String>()
             val text = StringBuilder()
             session.generateResponseAsync { partial, done ->
@@ -484,6 +518,95 @@ class ChefViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun usedPantryItems(recipe: Recipe, pantry: List<Ingredient>): List<Ingredient> =
         pantry.filter { item -> recipe.ingredients.any { PantryMatcher.matches(item.name, it.name) } }
+
+    // ---------- Foto de los productos ----------
+
+    /** El modelo mira la foto y propone los ingredientes que ve; el usuario elige cuáles agregar. */
+    fun scanPhoto(bitmap: Bitmap) {
+        val state = _uiState.value
+        val inference = llmInference
+        if (state.modelStatus !is ModelStatus.Ready || inference == null) {
+            showMessage("El modelo todavía no está listo.")
+            return
+        }
+        if (!state.canReadPhotos) {
+            showMessage(NO_VISION_MESSAGE)
+            return
+        }
+        val id = ++photoId
+        _uiState.update { it.copy(photoScan = PhotoScan()) }
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.Default) {
+                inferenceMutex.withLock {
+                    runCatching { runInference(inference, Prompts.photo(), image = bitmap) { } }
+                }
+            }
+            if (id != photoId) return@launch
+            val error = result.exceptionOrNull()
+            if (error != null) Log.e(TAG, "Error al leer la foto", error)
+            val items = result.getOrNull()?.let { parsePhotoItems(it) }.orEmpty()
+            _uiState.update {
+                it.copy(
+                    photoScan = when {
+                        error != null -> PhotoScan(loading = false, error = "No pude leer la foto: ${error.message ?: "error desconocido"}.")
+                        items.isEmpty() -> PhotoScan(
+                            loading = false,
+                            error = "No vi ingredientes en la foto. Prueba con más luz y los productos de frente.",
+                        )
+                        else -> PhotoScan(loading = false, items = items, selected = items.indices.toSet())
+                    }
+                )
+            }
+        }
+    }
+
+    private fun parsePhotoItems(text: String): List<String> {
+        val seen = mutableSetOf<String>()
+        return text.lines()
+            .map { line ->
+                line.trim()
+                    .replace(Regex("^([-*•·]|\\d+[.)])\\s*"), "")
+                    .replace("*", "")
+                    .substringBefore(":")
+                    .substringBefore("(")
+                    .trim()
+                    .trimEnd('.', ',', ';')
+            }
+            .filter { it.length in 2..40 && RecipeParser.normalize(it) != "ninguno" && !it.contains("foto", ignoreCase = true) }
+            .map { RecipeParser.capitalize(it) }
+            .filter { seen.add(RecipeParser.normalize(it)) }
+            .take(15)
+    }
+
+    fun togglePhotoItem(index: Int) {
+        _uiState.update { s ->
+            val scan = s.photoScan ?: return@update s
+            val selected = if (index in scan.selected) scan.selected - index else scan.selected + index
+            s.copy(photoScan = scan.copy(selected = selected))
+        }
+    }
+
+    /** Agrega a la despensa lo elegido de la foto y, si se pide, crea la receta en seguida. */
+    fun addPhotoItems(createRecipe: Boolean) {
+        val scan = _uiState.value.photoScan ?: return
+        val names = scan.items.filterIndexed { i, _ -> i in scan.selected }
+        _uiState.update { it.copy(photoScan = null) }
+        if (names.isNotEmpty()) {
+            updateIngredients { list ->
+                list + names.filter { name -> list.none { it.name.equals(name, ignoreCase = true) } }.map { Ingredient(name = it) }
+            }
+        }
+        if (createRecipe) {
+            generateRecipe()
+        } else if (names.isNotEmpty()) {
+            showMessage(if (names.size == 1) "Se agregó ${names[0]}" else "Se agregaron ${names.size} ingredientes")
+        }
+    }
+
+    fun dismissPhotoScan() {
+        photoId++
+        _uiState.update { it.copy(photoScan = null) }
+    }
 
     // ---------- Receta ----------
 
@@ -788,6 +911,8 @@ class ChefViewModel(application: Application) : AndroidViewModel(application) {
         const val DEVICE_MODEL_PATH = "/data/local/tmp/llm/model.task"
         const val MODEL_FILE_NAME = "model.task"
         const val URGENT_DAYS = 3
+        const val NO_VISION_MESSAGE =
+            "Para leer fotos hace falta un modelo con visión, como Gemma 3n E2B (.task). Con el modelo actual, escribe los ingredientes."
         const val MIN_PORTIONS = 1
         const val MAX_PORTIONS = 12
         private const val MAX_DAYS = 365

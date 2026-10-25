@@ -2,7 +2,13 @@ package com.chefdesobras.app
 
 import android.content.ActivityNotFoundException
 import android.content.ClipData
+import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.ImageDecoder
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -10,6 +16,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
@@ -33,12 +40,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -46,6 +57,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
+import kotlin.math.max
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -106,6 +119,31 @@ fun ChefApp(viewModel: ChefViewModel = viewModel()) {
     // Selector de archivos del sistema: el modelo .task no tiene tipo MIME propio, así que se aceptan todos.
     val modelPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) viewModel.importModel(uri)
+    }
+
+    // Foto de los productos: con la cámara (a un archivo, para tener buena resolución) o desde la galería.
+    fun scanPhoto(uri: Uri) {
+        val appContext = context.applicationContext
+        scope.launch {
+            val bitmap = withContext(Dispatchers.IO) { runCatching { loadScaledBitmap(appContext, uri) }.getOrNull() }
+            if (bitmap == null) viewModel.showMessage("No se pudo abrir la foto.") else viewModel.scanPhoto(bitmap)
+        }
+    }
+    var cameraUri by rememberSaveable { mutableStateOf<String?>(null) }
+    val takePhoto = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { saved ->
+        val uri = cameraUri?.let(Uri::parse)
+        if (saved && uri != null) scanPhoto(uri)
+    }
+    val pickPhoto = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) scanPhoto(uri)
+    }
+    fun photoAllowed(): Boolean {
+        val current = viewModel.uiState.value
+        if (current.modelStatus is ModelStatus.Ready && !current.canReadPhotos) {
+            viewModel.showMessage(ChefViewModel.NO_VISION_MESSAGE)
+            return false
+        }
+        return true
     }
 
     // «Guardar PDF»: el usuario elige dónde guardarlo (Descargas, Drive…).
@@ -184,6 +222,25 @@ fun ChefApp(viewModel: ChefViewModel = viewModel()) {
                         onTogglePreference = viewModel::togglePreference,
                         onGenerate = viewModel::generateRecipe,
                         onOpenFavorites = viewModel::openFavorites,
+                        onTakePhoto = {
+                            if (photoAllowed()) {
+                                try {
+                                    val uri = newPhotoUri(context)
+                                    cameraUri = uri.toString()
+                                    takePhoto.launch(uri)
+                                } catch (e: ActivityNotFoundException) {
+                                    viewModel.showMessage("No encontré una app de cámara. Prueba desde la galería.")
+                                }
+                            }
+                        },
+                        onPickPhoto = {
+                            if (photoAllowed()) {
+                                pickPhoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                            }
+                        },
+                        onTogglePhotoItem = viewModel::togglePhotoItem,
+                        onAddPhotoItems = viewModel::addPhotoItems,
+                        onDismissPhoto = viewModel::dismissPhotoScan,
                     )
 
                     screen == Screen.Generating -> GeneratingScreen(
@@ -271,4 +328,34 @@ fun ChefApp(viewModel: ChefViewModel = viewModel()) {
             )
         }
     }
+}
+
+/** Archivo nuevo en la caché donde la cámara guarda la foto. */
+private fun newPhotoUri(context: Context): Uri {
+    val dir = File(context.cacheDir, "photos").apply { mkdirs() }
+    dir.listFiles()?.forEach { it.delete() }
+    val file = File(dir, "productos-${System.currentTimeMillis()}.jpg")
+    return FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+}
+
+/** Abre la foto reducida a [maxSide] píxeles como máximo (al modelo le basta y ahorra memoria). */
+private fun loadScaledBitmap(context: Context, uri: Uri, maxSide: Int = 1024): Bitmap {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        val source = ImageDecoder.createSource(context.contentResolver, uri)
+        return ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
+            decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+            val largest = max(info.size.width, info.size.height)
+            if (largest > maxSide) {
+                val factor = maxSide.toFloat() / largest
+                decoder.setTargetSize((info.size.width * factor).toInt().coerceAtLeast(1), (info.size.height * factor).toInt().coerceAtLeast(1))
+            }
+        }
+    }
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+    var sample = 1
+    while (max(bounds.outWidth, bounds.outHeight) / (sample * 2) >= maxSide) sample *= 2
+    val options = BitmapFactory.Options().apply { inSampleSize = sample }
+    return context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) }
+        ?: error("No se pudo leer la imagen")
 }
