@@ -17,6 +17,17 @@ android {
         versionName = "1.0"
     }
 
+    // Llave de depuración fija (no es secreta): así cada APK que compila GitHub Actions
+    // se instala encima del anterior sin desinstalar y sin perder el modelo ni la despensa.
+    signingConfigs {
+        getByName("debug") {
+            storeFile = rootProject.file("keystore/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
