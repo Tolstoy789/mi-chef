@@ -49,7 +49,7 @@ adb push gemma3-1b-it-int4.task /data/local/tmp/llm/model.task
 
 - Los APK de GitHub Actions se firman con la llave de depuración fija de `keystore/debug.keystore` (contraseña `android`, no es secreta), para que cada versión nueva se instale encima de la anterior sin perder el modelo ni la despensa. No sirve para publicar en Play Store.
 
-- `tasks-genai:0.10.24`, AGP 8.7.3, Kotlin 2.0.21, Compose BOM 2024.12.01, minSdk 26 (para el icono adaptable), compileSdk 35.
+- `tasks-genai:0.10.35`, AGP 8.7.3, Kotlin 2.0.21, Compose BOM 2024.12.01, minSdk 26 (para el icono adaptable), compileSdk 35.
 - Backend CPU por defecto, que funciona en todos los teléfonos. El manifest declara las librerías OpenCL opcionales por si luego quieres probar GPU.
 - Los ingredientes se guardan en el teléfono (SharedPreferences) con su fecha de caducidad, así que la cuenta de días baja sola cada día.
 

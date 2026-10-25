@@ -56,9 +56,9 @@ android {
 
 dependencies {
     // Inferencia LLM en el dispositivo (Gemma) con MediaPipe
-    implementation("com.google.mediapipe:tasks-genai:0.10.24")
+    implementation("com.google.mediapipe:tasks-genai:0.10.35")
     // MPImage, para pasarle al modelo la foto de los productos
-    implementation("com.google.mediapipe:tasks-core:0.10.+")
+    implementation("com.google.mediapipe:tasks-core:0.10.35")
 
     // Jetpack Compose + Material 3
     implementation(platform("androidx.compose:compose-bom:2024.12.01"))
